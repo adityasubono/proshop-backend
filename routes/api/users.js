@@ -38,12 +38,18 @@ router.post('/',
 
         try {
 
-            // Cheack user if ready use...............
-            let user = await User.findOne({email})
+            // Cheack user and email if ready use...............
+            let userName = await User.findOne({name})
+            let userEmail = await User.findOne({email})
 
-            if(user) {
+
+            if(userName) {
                 res.status(400).json({ errors: [{
-                    msg: 'User already exists'
+                    msg: 'User Name already exists'
+                    }]});
+            }else if (userEmail) {
+                res.status(400).json({ errors: [{
+                        msg: 'User Email already exists'
                     }]});
             }
 
@@ -79,7 +85,7 @@ router.post('/',
                 });
 
 
-            console.log(req.body);
+            // console.log(req.body);
             // res.send('User Registered');
 
         }
