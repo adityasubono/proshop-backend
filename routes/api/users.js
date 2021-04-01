@@ -1,101 +1,88 @@
 const express = require('express');
 const router = express.Router();
-const {check, validationResult} = require('express-validator');
-const User = require('../../models/User');
 const gravatar = require('gravatar');
-const brycpt = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const config = require('config');
+const { check, validationResult } = require('express-validator');
+const normalize = require('normalize-url');
+var crypto = require('crypto');
 
-// @route GET api/users
-// @desc Register user
-// @access Public
+const User = require('../../models/User');
 
-router.get('/', (req, res) => {
-    res.send('Hello ini adalah get user router');
-});
-
-router.post('/',
-    [
-        check('name', 'Name is required')
-            .not()
-            .isEmpty(),
-
-        check('email', 'Please include a valid email')
-            .isEmail(),
-        check('password', 'Please enter password with 6 or more characters')
-            .isLength({min: 6})
-    ],
+// @route    POST api/users
+// @desc     Register user
+// @access   Public
+router.post(
+    '/',
+    check('name', 'Name is required').notEmpty(),
+    check('email', 'Please include a valid email').isEmail(),
+    check(
+        'password',
+        'Please enter a password with 6 or more characters'
+    ).isLength({ min: 6 }),
     async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            return res.status(400).json({errors: errors.array()});
+            return res.status(400).json({ errors: errors.array() });
         }
 
-
-        // console.log('isi body',req.body)
-        const {name, email, password} = req.body;
+        const { name, email, password } = req.body;
 
         try {
+            let size = 0
+            let defaults = 'retro';
 
-            // Cheack user and email if ready use...............
-            let userName = await User.findOne({name})
-            let userEmail = await User.findOne({email})
+            let user = await User.findOne({ email });
 
 
-            if(userName) {
-                res.status(400).json({ errors: [{
-                    msg: 'User Name already exists'
-                    }]});
-            }else if (userEmail) {
-                res.status(400).json({ errors: [{
-                        msg: 'User Email already exists'
-                    }]});
+            if (user) {
+                return res
+                    .status(400)
+                    .json({ errors: [{ msg: 'User already exists' }] });
             }
 
-            // Get user Avatar........................
-            const  avatar = gravatar.url(email, {
-                s: '200',
-                r: 'pg',
-                d: 'mm'
-            })
+            //
+            // var md5 = crypto.createHash('md5').update(email).digest('hex');
+            // var avatar = normalize('http://www.gravatar.com/avatar/' + md5 + '?s=250');
 
+            const avatar = normalize(
+                gravatar.url(email, {s: '100', r: 'x', d: 'retro'}, true)
+            );
 
-            // Encrypt password..........................
             user = new User({
-                name, email, password, avatar
+                name,
+                email,
+                avatar,
+                password
             });
 
-            const salt = await brycpt.genSalt(10);
-            user.password = await brycpt.hash(password, salt);
+            const salt = await bcrypt.genSalt(10);
+
+            user.password = await bcrypt.hash(password, salt);
 
             await user.save();
 
-            // Return jsonwebtoken................
             const payload = {
                 user: {
                     id: user.id
                 }
-            }
+            };
 
-            jwt.sign(payload, config.get('jwtSecret'),
-                { expiresIn: 360000 }, (err, token) => {
-                if(err) throw err;
-                res.json({ token });
-                });
-
-
-            // console.log(req.body);
-            // res.send('User Registered');
-
+            jwt.sign(
+                payload,
+                config.get('jwtSecret'),
+                { expiresIn: '5 days' },
+                (err, token) => {
+                    if (err) throw err;
+                    res.json({ token });
+                }
+            );
+        } catch (err) {
+            console.error(err.message);
+            res.status(500).send('Server error');
         }
-        catch (err) {
-            console.log(err.massage);
-            res.status(500).send('Server error')
-        }
-
-
-    });
-
+    }
+);
 
 module.exports = router;
